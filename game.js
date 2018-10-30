@@ -1,9 +1,100 @@
-window.addEventListener('keydown', this.updatePosition, false);
-window.addEventListener('click', this.onClick, false);
+window.addEventListener('keydown', this.onKeyPress, false);
 
 init();
-var highScore = 0;
+
+var highScore;
 var interval;
+
+function init() {
+    if (interval) {
+        clearInterval(interval);
+    }
+
+    loadHighScore();
+
+    this.canvas = document.getElementById('board');
+    this.canvas.width = 600;
+    this.canvas.height = 600;
+    this.canvas.margins = 25;
+
+    this.canvas.addEventListener('click', function () {
+        onClick();
+    }, false);
+
+    this.ctx = this.canvas.getContext('2d');
+    initNewGame();
+}
+
+function initNewGame() {
+    if (interval) {
+        clearInterval(interval);
+    }
+
+    this.player = new Player(this.canvas.width / 2, this.canvas.height / 2);
+
+    interval = setInterval(this.update, 1000 / 30);
+}
+
+function update() {
+    if (!this.player.gameOver) {
+        this.ctx.fillStyle = "#ffffff";
+        this.ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        this.player.update();
+    } else {
+        console.log('game over ');
+    }
+}
+
+function gameOver() {
+    this.player.gameOver = true;
+    ctx.fillStyle = 'black';
+    ctx.font = "bold 80px Arial";
+    ctx.textAlign = "center"
+    ctx.fillText("GAME OVER", canvas.width / 2, canvas.height / 2 - 50);
+
+    if (player.score > highScore) {
+        highScore = player.score;
+        localStorage.setItem('highScore', JSON.stringify(highScore));
+    }
+    clearInterval(interval);
+    setTimeout(initNewGame, 2000);
+}
+
+function loadHighScore() {
+    let savedScore = JSON.parse(localStorage.getItem('score'));
+    let savedHighScore = JSON.parse(localStorage.getItem('highScore'));
+    if (savedHighScore) {
+        highScore = savedHighScore;
+    }
+    if (savedScore && savedScore > highScore) {
+        highScore = savedScore;
+    }
+}
+
+function onKeyPress(e, c) {
+    let key = e.keyCode;
+
+    if (key === 32) {
+        player.commit();
+    }
+}
+
+function onClick() {
+    if (this.player && !this.player.gameOver) {
+        this.player.commit();
+    }
+}
+
+function getRandomColor() {
+    var letters = '23456789ABCD';
+    var color = '#';
+    for (var i = 0; i < 6; i++) {
+        color += letters[Math.floor(Math.random() * 12)];
+    }
+    return color;
+}
+
 
 function Player() {
     this.blocks = [];
@@ -13,7 +104,7 @@ function Player() {
     this.block.vy = 0;
     this.block.color = '#ff00ff';
 
-    this.speed = 5;
+    this.speed = 8;
     this.score = 0;
 
     this.update = function () {
@@ -27,9 +118,9 @@ function Player() {
     this.draw = function () {
         this.block.draw();
 
-        ctx.font = "bold 64px Arial";
+        ctx.font = "bold 100px Arial";
         ctx.textAlign = "center"
-        ctx.fillText(this.score, canvas.width / 2, 100);
+        ctx.fillText(this.score, canvas.width / 2, 120);
 
         if (highScore > 0) {
             ctx.fillStyle = 'gray';
@@ -40,11 +131,7 @@ function Player() {
     }
 
     this.commit = function () {
-
-        let newBlock;
-        if (!this.block.parent) {
-            newBlock = new Block(0, canvas.height / 2, this.block.width, this.block.height);
-        } else {
+        if (this.block.parent) {
             this.block.moveX = false;
             let parent = this.block.parent;
 
@@ -64,19 +151,20 @@ function Player() {
             }
         }
 
-        newBlock = new Block(0, canvas.height / 2, this.block.width, this.block.height);
+        let newBlock = new Block(0, canvas.height / 2, this.block.width, this.block.height, this.speed, this.block);
 
         let startX = Math.random() > 0.5 ? 0 : canvas.width - newBlock.width;
 
         newBlock.x = startX;
-        newBlock.vx = 1 * this.speed;
         newBlock.moveX = true;
-        newBlock.parent = this.block;
 
         this.blocks.push(this.block);
         this.moveBlocks();
         this.block = newBlock;
+        this.blocks = this.blocks.filter(b => !b.remove);
+
         this.score++;
+        localStorage.setItem('score', JSON.stringify(this.score));
     }
 
     this.moveBlocks = function () {
@@ -86,11 +174,13 @@ function Player() {
     }
 }
 
-function Block(x, y, w, h, parent) {
+function Block(x, y, w, h, speed, parent) {
     this.width = w;
     this.height = h;
     this.x = x;
     this.y = y;
+    this.speed = speed;
+    this.vx = 1;
     this.parent = parent;
     this.color = getRandomColor();
 
@@ -110,11 +200,17 @@ Block.prototype.update = function () {
         }
     }
     if (this.moveX) {
-        this.x += this.vx;
+        this.x += this.vx * this.speed;
 
-        if (this.x + this.width > canvas.width || this.x < 0) {
-            this.vx = -this.vx;
+        if (this.x + this.width > canvas.width - canvas.margins) {
+            this.vx = -1;
+        } else if (this.x < canvas.margins) {
+            this.vx = 1;
         }
+    }
+
+    if (this.y > canvas.height) {
+        this.remove = true;
     }
 
     this.draw();
@@ -123,62 +219,4 @@ Block.prototype.update = function () {
 Block.prototype.draw = function () {
     ctx.fillStyle = this.color;
     ctx.fillRect(this.x, this.y, this.width, this.height);
-}
-
-function init() {
-    if (interval) {
-        clearInterval(interval);
-    }
-    this.canvas = document.getElementById('board');
-    this.canvas.width = 400;
-    this.canvas.height = 400;
-    this.ctx = this.canvas.getContext('2d');
-    this.player = new Player(this.canvas.width / 2, this.canvas.height / 2);
-
-    interval = setInterval(this.update, 1000 / 30);
-}
-
-function update() {
-    if (!this.player.gameOver) {
-        this.ctx.fillStyle = "#ffffff";
-        this.ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-        this.player.update();
-    }
-}
-
-function gameOver() {
-    this.player.gameOver = true;
-    ctx.fillStyle = 'black';
-    ctx.font = "bold 64px Arial";
-    ctx.textAlign = "center"
-    ctx.fillText("GAME OVER", canvas.width / 2, 180);
-
-    if (player.score > highScore) {
-        highScore = player.score;
-    }
-    setTimeout(init, 2000);
-}
-
-function updatePosition(e, c) {
-    let key = e.keyCode;
-
-    if (key === 32) {
-        player.commit();
-    }
-}
-
-function onClick() {
-    if (this.player) {
-        this.player.commit();
-    }
-}
-
-function getRandomColor() {
-    var letters = '23456789ABCD';
-    var color = '#';
-    for (var i = 0; i < 6; i++) {
-        color += letters[Math.floor(Math.random() * 12)];
-    }
-    return color;
 }
